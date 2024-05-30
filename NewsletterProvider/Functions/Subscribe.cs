@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
 using Data.Contexts;
@@ -38,7 +39,7 @@ namespace NewsletterProvider.Functions
 
                 if (!string.IsNullOrEmpty(body))
                 {
-                    var subscribeEntity = JsonConvert.DeserializeObject<SubscribeEntity>(body);
+                    var subscribeEntity = JsonConvert.DeserializeObject<SubsribeEntity>(body);
                     if (subscribeEntity != null)
                     {
                         var existingSubscriber = await _context.Subscribers.FirstOrDefaultAsync(x => x.Email == subscribeEntity.Email);
@@ -71,7 +72,7 @@ namespace NewsletterProvider.Functions
             }
         }
 
-        private async Task SendEmailRequest(SubscribeEntity subscribeEntity)
+        private async Task SendEmailRequest(SubsribeEntity subscribeEntity)
         {
             var subscriptionDetails = new StringBuilder();
             subscriptionDetails.Append("<html><p>You are now subscribed to:</p><ul>");
