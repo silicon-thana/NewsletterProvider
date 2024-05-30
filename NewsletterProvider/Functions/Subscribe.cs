@@ -74,30 +74,46 @@ namespace NewsletterProvider.Functions
 
         private async Task SendEmailRequest(SubsribeEntity subscribeEntity)
         {
-            var subscriptionDetails = new StringBuilder();
-            subscriptionDetails.Append("<html><p>You are now subscribed to:</p><ul>");
+            string htmlContent;
+            string plainTextContent;
 
-            if (subscribeEntity.DailyNewsletter)
-                subscriptionDetails.Append("<li>Daily Newsletter</li>");
-            if (subscribeEntity.AdvertisingUpdates)
-                subscriptionDetails.Append("<li>Advertising Updates</li>");
-            if (subscribeEntity.WeekinReview)
-                subscriptionDetails.Append("<li>Week in Review</li>");
-            if (subscribeEntity.EventUpdates)
-                subscriptionDetails.Append("<li>Event Updates</li>");
-            if (subscribeEntity.StartupWeekly)
-                subscriptionDetails.Append("<li>Startup Weekly</li>");
-            if (subscribeEntity.Podcasts)
-                subscriptionDetails.Append("<li>Podcasts</li>");
+            // Check if any subscription option is selected
+            if (subscribeEntity.DailyNewsletter || subscribeEntity.AdvertisingUpdates || subscribeEntity.WeekinReview ||
+                subscribeEntity.EventUpdates || subscribeEntity.StartupWeekly || subscribeEntity.Podcasts)
+            {
+                var subscriptionDetails = new StringBuilder();
+                subscriptionDetails.Append("<html><p>You are now subscribed to:</p><ul>");
 
-            subscriptionDetails.Append("</ul></html>");
+                if (subscribeEntity.DailyNewsletter)
+                    subscriptionDetails.Append("<li>Daily Newsletter</li>");
+                if (subscribeEntity.AdvertisingUpdates)
+                    subscriptionDetails.Append("<li>Advertising Updates</li>");
+                if (subscribeEntity.WeekinReview)
+                    subscriptionDetails.Append("<li>Week in Review</li>");
+                if (subscribeEntity.EventUpdates)
+                    subscriptionDetails.Append("<li>Event Updates</li>");
+                if (subscribeEntity.StartupWeekly)
+                    subscriptionDetails.Append("<li>Startup Weekly</li>");
+                if (subscribeEntity.Podcasts)
+                    subscriptionDetails.Append("<li>Podcasts</li>");
+
+                subscriptionDetails.Append("</ul></html>");
+
+                htmlContent = subscriptionDetails.ToString();
+                plainTextContent = "You are now subscribed to the selected newsletters.";
+            }
+            else
+            {
+                htmlContent = "<html><p>You are now subscribed to the newsletter!</p></html>";
+                plainTextContent = "You are now subscribed to the newsletter!";
+            }
 
             var emailContent = new
             {
                 RecipientAddress = subscribeEntity.Email,
                 Subject = "Subscription Confirmation",
-                HtmlContent = subscriptionDetails.ToString(),
-                PlainTextContent = "You are now subscribed to our newsletters."
+                HtmlContent = htmlContent,
+                PlainTextContent = plainTextContent
             };
 
             var messageBody = JsonConvert.SerializeObject(emailContent);
