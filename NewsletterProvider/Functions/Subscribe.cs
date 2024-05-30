@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using Azure.Messaging.ServiceBus;
 using Data.Contexts;
 using Data.Entities;
 using Microsoft.AspNetCore.Http;
@@ -6,10 +10,6 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Azure.Messaging.ServiceBus;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NewsletterProvider.Functions
 {
@@ -29,31 +29,49 @@ namespace NewsletterProvider.Functions
         [Function("Subscribe")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
         {
-            var body = await new StreamReader(req.Body).ReadToEndAsync();
-            if (!string.IsNullOrEmpty(body))
+            _logger.LogInformation("Subscribe function started.");
+
+            try
             {
-                var subscribeEntity = JsonConvert.DeserializeObject<SubsribeEntity>(body);
-                if (subscribeEntity != null)
+                var body = await new StreamReader(req.Body).ReadToEndAsync();
+                _logger.LogInformation($"Request body: {body}");
+
+                if (!string.IsNullOrEmpty(body))
                 {
-                    var existingSubscriber = await _context.Subscribers.FirstOrDefaultAsync(x => x.Email == subscribeEntity.Email);
-                    if (existingSubscriber != null)
+                    var subscribeEntity = JsonConvert.DeserializeObject<SubscribeEntity>(body);
+                    if (subscribeEntity != null)
                     {
-                        _context.Entry(existingSubscriber).CurrentValues.SetValues(subscribeEntity);
+                        var existingSubscriber = await _context.Subscribers.FirstOrDefaultAsync(x => x.Email == subscribeEntity.Email);
+                        if (existingSubscriber != null)
+                        {
+                            _context.Entry(existingSubscriber).CurrentValues.SetValues(subscribeEntity);
+                            await _context.SaveChangesAsync();
+                            await SendEmailRequest(subscribeEntity);
+                            return new OkObjectResult(new { Status = 200, Message = "Subscriber Updated" });
+                        }
+
+                        _context.Subscribers.Add(subscribeEntity);
                         await _context.SaveChangesAsync();
                         await SendEmailRequest(subscribeEntity);
-                        return new OkObjectResult(new { Status = 200, Message = "Subscriber Updated" });
+                        return new OkObjectResult(new { Status = 200, Message = "Subscriber added" });
                     }
-
-                    _context.Subscribers.Add(subscribeEntity);
-                    await _context.SaveChangesAsync();
-                    await SendEmailRequest(subscribeEntity);
-                    return new OkObjectResult(new { Status = 200, Message = "Subscriber added" });
                 }
+                return new BadRequestObjectResult(new { Status = 400, Message = "Unable to subscribe" });
             }
-            return new BadRequestObjectResult(new { Status = 400, Message = "Unable to subscribe" });
+            catch (Exception ex)
+            {
+                _logger.LogError($"ERROR : Subscribe.Run :: {ex.Message}");
+                _logger.LogError($"Stack Trace: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    _logger.LogError($"Inner Exception: {ex.InnerException.Message}");
+                    _logger.LogError($"Inner Exception Stack Trace: {ex.InnerException.StackTrace}");
+                }
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
         }
 
-        private async Task SendEmailRequest(SubsribeEntity subscribeEntity)
+        private async Task SendEmailRequest(SubscribeEntity subscribeEntity)
         {
             var subscriptionDetails = new StringBuilder();
             subscriptionDetails.Append("<html><p>You are now subscribed to:</p><ul>");
@@ -84,8 +102,17 @@ namespace NewsletterProvider.Functions
             var messageBody = JsonConvert.SerializeObject(emailContent);
             var message = new ServiceBusMessage(Encoding.UTF8.GetBytes(messageBody));
 
-            ServiceBusSender sender = _serviceBusClient.CreateSender("email_request");
-            await sender.SendMessageAsync(message);
+            try
+            {
+                ServiceBusSender sender = _serviceBusClient.CreateSender("email_request");
+                await sender.SendMessageAsync(message);
+                _logger.LogInformation($"Email request sent for {subscribeEntity.Email}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to send email request: {ex.Message}");
+                _logger.LogError($"Stack Trace: {ex.StackTrace}");
+            }
         }
     }
 }
