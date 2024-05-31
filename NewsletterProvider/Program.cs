@@ -4,8 +4,9 @@
     using Microsoft.EntityFrameworkCore;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+using NewsletterProvider.Services;
 
-    var host = new HostBuilder()
+var host = new HostBuilder()
         .ConfigureFunctionsWebApplication()
         .ConfigureServices(services =>
         {
@@ -22,6 +23,7 @@
 
             // Register the ServiceBusClient with the retrieved connection string
             services.AddSingleton(new ServiceBusClient(serviceBusConnectionString));
+            services.AddSingleton<ISendEmailService, SendEmailService>();
         })
         .Build();
 

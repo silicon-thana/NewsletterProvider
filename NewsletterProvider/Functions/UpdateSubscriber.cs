@@ -13,23 +13,23 @@ using NewsletterProvider.Services;
 
 namespace NewsletterProvider.Functions
 {
-    public class Subscribe
+    public class UpdateSubscriber
     {
-        private readonly ILogger<Subscribe> _logger;
+        private readonly ILogger<UpdateSubscriber> _logger;
         private readonly DataContext _context;
         private readonly ISendEmailService _emailService;
 
-        public Subscribe(ILogger<Subscribe> logger, DataContext context, ISendEmailService emailService)
+        public UpdateSubscriber(ILogger<UpdateSubscriber> logger, DataContext context, ISendEmailService emailService)
         {
             _logger = logger;
             _context = context;
             _emailService = emailService;
         }
 
-        [Function("Subscribe")]
-        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
+        [Function("UpdateSubscriber")]
+        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "put", Route = "UpdateSubscriber/{email}")] HttpRequest req, string email)
         {
-            _logger.LogInformation("Subscribe function started.");
+            _logger.LogInformation("UpdateSubscriber function started.");
 
             try
             {
@@ -38,29 +38,33 @@ namespace NewsletterProvider.Functions
 
                 if (!string.IsNullOrEmpty(body))
                 {
-                    var subscribeEntity = JsonConvert.DeserializeObject<SubsribeEntity>(body);
-                    if (subscribeEntity != null)
+                    var updatedSubscriber = JsonConvert.DeserializeObject<SubsribeEntity>(body);
+                    if (updatedSubscriber != null)
                     {
-                        var existingSubscriber = await _context.Subscribers.FirstOrDefaultAsync(x => x.Email == subscribeEntity.Email);
+                        var existingSubscriber = await _context.Subscribers.FirstOrDefaultAsync(x => x.Email == email);
                         if (existingSubscriber != null)
                         {
-                            _context.Entry(existingSubscriber).CurrentValues.SetValues(subscribeEntity);
+                            existingSubscriber.DailyNewsletter = updatedSubscriber.DailyNewsletter;
+                            existingSubscriber.AdvertisingUpdates = updatedSubscriber.AdvertisingUpdates;
+                            existingSubscriber.WeekinReview = updatedSubscriber.WeekinReview;
+                            existingSubscriber.EventUpdates = updatedSubscriber.EventUpdates;
+                            existingSubscriber.StartupWeekly = updatedSubscriber.StartupWeekly;
+                            existingSubscriber.Podcasts = updatedSubscriber.Podcasts;
+
                             await _context.SaveChangesAsync();
-                            await _emailService.SendEmailRequest(subscribeEntity);
+                            await _emailService.SendEmailRequest(existingSubscriber);
+
                             return new OkObjectResult(new { Status = 200, Message = "Subscriber Updated" });
                         }
 
-                        _context.Subscribers.Add(subscribeEntity);
-                        await _context.SaveChangesAsync();
-                        await _emailService.SendEmailRequest(subscribeEntity);
-                        return new OkObjectResult(new { Status = 200, Message = "Subscriber added" });
+                        return new NotFoundObjectResult(new { Status = 404, Message = "Subscriber not found" });
                     }
                 }
-                return new BadRequestObjectResult(new { Status = 400, Message = "Unable to subscribe" });
+                return new BadRequestObjectResult(new { Status = 400, Message = "Invalid request" });
             }
             catch (Exception ex)
             {
-                _logger.LogError($"ERROR : Subscribe.Run :: {ex.Message}");
+                _logger.LogError($"ERROR : UpdateSubscriber.Run :: {ex.Message}");
                 _logger.LogError($"Stack Trace: {ex.StackTrace}");
                 if (ex.InnerException != null)
                 {
